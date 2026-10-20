@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Netfari harness</title>
+    <style>
+      body { margin: 0; font: 13px monospace; background: #111; color: #ddd; }
+      .watch-video--player-view { position: relative; width: 640px; height: 360px; background: #222; }
+      video { width: 100%; height: 100%; }
+      pre { padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="watch-video--player-view"><video></video></div>
+    <pre id="results"></pre>
+    <script>
+      // Stands in for content.js: injects page.js and drives it with settings messages.
+      const MSG = '__netfari';
+      const states = [];
+      let settings = { enabled: true, lang: 'en', position: 'top', size: 5 };
+      const toPage = (m) => window.postMessage({ [MSG]: 'toPage', ...m }, location.origin);
+      window.addEventListener('message', (e) => {
+        if (!e.data || e.data[MSG] !== 'toContent') return;
+        if (e.data.type === 'ready') toPage({ type: 'settings', settings });
+        if (e.data.type === 'state') states.push(e.data.state);
+      });
+
+      let fakeTime = 0;
+      const video = document.querySelector('video');
+      Object.defineProperty(video, 'currentTime', { get: () => fakeTime, set: (v) => (fakeTime = v) });
+
+      const out = [];
+      const check = (name, ok, detail = '') => out.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -> ' + detail : ''}`);
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const overlayText = () => {
+        const o = document.querySelector('.netfari-overlay');
+        return o && o.style.display !== 'none' ? o.textContent : '';
+      };
+
+      async function run() {
+        const s = document.createElement('script');
+        s.src = '/ext/page.js';
+        document.head.appendChild(s);
+        await new Promise((r) => (s.onload = r));
+        await sleep(100);
+
+        // 1. Manifest request gets patched.
+        const req = {
+          url: '/playapi/cadmium/licensedmanifest/1',
+          params: { profiles: ['heaac-2-dash', 'imsc1.1'], showAllSubDubTracks: false },
+        };
+        const body = JSON.parse(JSON.stringify(req));
+        check('adds webvtt profile', body.params.profiles.includes('webvtt-lssdh-ios8'), body.params.profiles.join(','));
+        check('no duplicate profile', body.params.profiles.filter((p) => p === 'imsc1.1').length === 1);
+        check('showAllSubDubTracks forced', body.params.showAllSubDubTracks === true);
+        check('preferredTextLocale = secondary lang', body.params.preferredTextLocale === 'en');
+        check('non-manifest request untouched', JSON.stringify({ url: '/other', params: { profiles: [] } }) === '{"url":"/other","params":{"profiles":[]}}');
+
+        // 2. Episode id override: URL /watch/12345, manifest movieId 999.
+        JSON.stringify({ movieId: 999, params: { sessionParams: { uiplaycontext: { video_id: 12345 } } } });
+
+        // 3. Manifest response is captured.
+        const manifest = {
+          result: {
+            movieId: 999,
+            timedtexttracks: [
+              { isNoneTrack: true, language: 'none' },
+              { language: 'en', languageDescription: 'English', rawTrackType: 'subtitles', isForcedNarrative: true,
+                ttDownloadables: { 'webvtt-lssdh-ios8': { urls: [{ url: '/subs/forced.vtt' }] } } },
+              { language: 'en', languageDescription: 'English', rawTrackType: 'closedcaptions',
+                ttDownloadables: { 'webvtt-lssdh-ios8': { urls: [{ url: '/subs/missing.vtt' }] } } },
+              { language: 'en', languageDescription: 'English', rawTrackType: 'subtitles',
+                ttDownloadables: { 'webvtt-lssdh-ios8': { urls: [{ cdn_id: 1, url: '/subs/en.vtt' }] } } },
+              { language: 'cs', languageDescription: 'Čeština', rawTrackType: 'subtitles',
+                ttDownloadables: { 'dfxp-ls-sdh': { downloadUrls: { 7: '/subs/cs.dfxp' } } } },
+              { language: 'ja', languageDescription: 'Japanese', rawTrackType: 'subtitles',
+                ttDownloadables: { 'nflx-cmisc': { downloadUrls: { 7: '/subs/ja.zip' } } } },
+            ],
+          },
+        };
+        JSON.parse(JSON.stringify(manifest));
+        await sleep(400);
+
+        const last = states[states.length - 1] || {};
+        check('state movie uses id override', last.movie === '999', String(last.movie));
+        check('state lists en + cs, skips image-only ja', JSON.stringify((last.tracks || []).map((t) => t.lang)) === '["en","cs"]', JSON.stringify(last.tracks));
+
+        // 4. WebVTT rendering follows currentTime.
+        fakeTime = 1.5;
+        await sleep(250);
+        check('vtt cue shown, tags stripped, entity decoded', overlayText() === 'Hello & welcome', JSON.stringify(overlayText()));
+        fakeTime = 2.5;
+        await sleep(250);
+        check('gap hides overlay', overlayText() === '', JSON.stringify(overlayText()));
+        fakeTime = 3.2;
+        await sleep(250);
+        check('multi-line vtt cue', overlayText() === 'Two\nlines', JSON.stringify(overlayText()));
+        const o = document.querySelector('.netfari-overlay');
+        check('overlay inside player view', o.parentElement.className === 'watch-video--player-view');
+        check('font size = 5% of 360px', o.style.fontSize === '18px', o.style.fontSize);
+
+        // 5. Switch to Czech (TTML / dfxp).
+        settings = { ...settings, lang: 'cs', position: 'bottom' };
+        toPage({ type: 'settings', settings });
+        fakeTime = 1.2;
+        await sleep(400);
+        check('ttml cue with span and br', overlayText() === 'Ahoj, jak se\nmáš?', JSON.stringify(overlayText()));
+        check('position bottom', o.style.bottom === '20%' && o.style.top === '', `top=${o.style.top} bottom=${o.style.bottom}`);
+        fakeTime = 3.5;
+        await sleep(250);
+        check('ttml clock-time cue', overlayText() === 'Dobře', JSON.stringify(overlayText()));
+
+        // 6. Off / on.
+        toPage({ type: 'settings', settings: { ...settings, enabled: false } });
+        await sleep(250);
+        check('off hides overlay', overlayText() === '', JSON.stringify(overlayText()));
+        toPage({ type: 'settings', settings: { ...settings, enabled: true } });
+        await sleep(300);
+        check('on shows it again', overlayText() === 'Dobře', JSON.stringify(overlayText()));
+
+        // 7. Language not on this title.
+        toPage({ type: 'settings', settings: { ...settings, lang: 'de' } });
+        await sleep(300);
+        const st = states[states.length - 1];
+        check('missing language reported', /No "de" subtitles/.test(st.status), st.status);
+        check('missing language hides overlay', overlayText() === '');
+
+        // 8. JSON still behaves normally.
+        check('JSON.parse reviver still works', JSON.parse('{"a":1}', (k, v) => (k === 'a' ? v + 1 : v)).a === 2);
+
+        const fails = out.filter((l) => l.startsWith('FAIL')).length;
+        out.push(`\n${out.length - 0} checks, ${fails} failed`);
+        document.getElementById('results').textContent = out.join('\n');
+        document.title = fails ? 'FAILED' : 'ALL PASS';
+      }
+      run().catch((e) => {
+        document.getElementById('results').textContent = 'ERROR ' + e.stack;
+        document.title = 'ERROR';
+      });
+    </script>
+  </body>
+</html>

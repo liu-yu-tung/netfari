@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Netfari",
+  "version": "0.1.0",
+  "description": "Show a second subtitle language on Netflix in Safari and turn it on or off.",
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Netfari",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/toolbar-16.png",
+      "32": "icons/toolbar-32.png"
+    }
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["*://*.netflix.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.netflix.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page.js"],
+      "matches": ["*://*.netflix.com/*"]
+    }
+  ]
+}
