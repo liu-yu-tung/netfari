@@ -10,11 +10,16 @@ Safari web extension that shows a second subtitle language on Netflix, with an o
 
 If the language you want is not listed for a title, choose it under "Other" and reload the video page. The extension then asks Netflix for that language in the next manifest request. Netflix still only returns languages it has for that title.
 
+## Requirements
+
+- **macOS:** 12 or later, Apple silicon or Intel.
+- **Safari:** 15.4 or later (first version with Manifest V3).
+
 ## Install
 
 Netfari is not signed with an Apple developer account, so Safari only loads it with "Allow unsigned extensions" on. Safari turns that setting off each time it quits.
 
-Option 1, build the app (stays installed, needs Xcode):
+Option 1, the app (stays installed). Download `Netfari.dmg` from [Releases](https://github.com/liu-yu-tung/netfari/releases), or build it yourself with Xcode:
 
 ```bash
 ./scripts/build-dmg.sh
