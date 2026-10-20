@@ -1,3 +1,5 @@
+<p align="center"><img src="extension/icons/icon-128.png" width="96" height="96" alt="Netfari icon"></p>
+
 # Netfari
 
 Safari web extension that shows a second subtitle language on Netflix, with an on/off switch. No account, no tracking, no servers: it only downloads the subtitle files Netflix already offers for the title.
@@ -49,6 +51,11 @@ Safari removes temporary extensions after 24 hours or when it quits, so repeat s
 - It downloads the chosen track, parses WebVTT or TTML, and draws the line that matches `video.currentTime` inside the player element, so it also shows in fullscreen.
 - Image-based subtitle tracks are skipped.
 - The hook approach follows Tithen-Firion's MIT-licensed Netflix subtitle downloader userscript.
+- The icons in `extension/icons` are drawn by `tools/make_icons.py` (standard library only). To change them, edit the colors or shapes there and run:
+
+```bash
+python3 -I tools/make_icons.py extension/icons
+```
 
 ## Test
 
