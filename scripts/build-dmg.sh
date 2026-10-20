@@ -21,7 +21,8 @@ fi
 
 rm -rf "$BUILD"
 xcodebuild -project "$PROJ" -scheme Netfari -configuration Release \
-  -derivedDataPath "$BUILD/dd" \
+  -derivedDataPath "$BUILD/dd" -destination 'generic/platform=macOS' \
+  ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET=12.0 \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
   MARKETING_VERSION="$VERSION" \
   build -quiet
