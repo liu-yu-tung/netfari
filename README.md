@@ -29,7 +29,7 @@ Option 1, the app (stays installed). Download `Netfari.dmg` from [Releases](http
 ./scripts/build-dmg.sh
 ```
 
-This converts `extension/` into an Xcode project under `xcode/`, builds it with ad-hoc signing, and writes `build/Netfari.dmg`. Each build gets its own version (the version in `extension/manifest.json` plus a build counter, such as 0.2.0.4), shown in Safari's extension settings and in the popup, so you can tell which build is loaded.
+This converts `extension/` into an Xcode project under `xcode/`, builds it with ad-hoc signing, and writes `build/Netfari.dmg`. Each build gets its own version (the version in `extension/manifest.json` plus a build counter, such as 0.2.0.4), shown in Safari's extension settings and in the popup, so you can tell which build is loaded. For a release, `RELEASE=1 ./scripts/build-dmg.sh` stamps the plain version from the manifest.
 
 1. Open `build/Netfari.dmg`, drag Netfari into Applications, then eject the disk.
 2. Open Netfari from Applications once. If macOS blocks it, use System Settings > Privacy & Security > Open Anyway.

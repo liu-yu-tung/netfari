@@ -13,10 +13,16 @@ BASE_VERSION=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$ROOT/extension/mani
 
 # Every build gets its own number (base version + counter), so Safari's settings
 # and the popup show which build is loaded. The counter file is not in git.
+# RELEASE=1 builds the plain base version for a GitHub release.
 COUNTER="$ROOT/.build-number"
-BUILD_NUM=$(( $(cat "$COUNTER" 2>/dev/null || echo 0) + 1 ))
-echo "$BUILD_NUM" > "$COUNTER"
-VERSION="$BASE_VERSION.$BUILD_NUM"
+if [ "${RELEASE:-0}" = 1 ]; then
+  BUILD_NUM=$(cat "$COUNTER" 2>/dev/null || echo 0)
+  VERSION="$BASE_VERSION"
+else
+  BUILD_NUM=$(( $(cat "$COUNTER" 2>/dev/null || echo 0) + 1 ))
+  echo "$BUILD_NUM" > "$COUNTER"
+  VERSION="$BASE_VERSION.$BUILD_NUM"
+fi
 
 # Regenerate every time: the project lists extension files one by one,
 # so a stale project would leave out files added since.
