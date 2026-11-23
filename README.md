@@ -50,7 +50,7 @@ Safari removes temporary extensions after 24 hours or when it quits, so repeat s
 
 - `core.js` and the file for the current site from `sites/` run in the page's own JavaScript world. Safari 18 and later start them from the manifest (`"world": "MAIN"`) before the site's scripts, so the first subtitle list is never missed; on older Safari `content.js` injects them. `content.js` passes settings from `browser.storage.local`.
 - `core.js` is shared: it downloads the chosen track, parses WebVTT or TTML, and draws the line that matches `video.currentTime` over the video, so it also shows in fullscreen. A new site is one more file in `sites/` (the interface is described at the top of `core.js`).
-- `sites/netflix.js` wraps `JSON.stringify` to add text subtitle formats (`webvtt-lssdh-ios8`, `dfxp-ls-sdh`, `imsc1.1`, `simplesdh`) and the chosen language to Netflix's manifest request, and wraps `JSON.parse` to read the subtitle track list from the response. Image-based subtitle tracks are skipped. When a language has both regular subtitles and a DUBTITLE (written for the dub in that language), Netfari uses the track Netflix itself shows for that language, else the DUBTITLE when the audio is in that language, else the regular one. The hook approach follows Tithen-Firion's MIT-licensed Netflix subtitle downloader userscript.
+- `sites/netflix.js` wraps `JSON.stringify` to add text subtitle formats (`webvtt-lssdh-ios8`, `dfxp-ls-sdh`, `imsc1.1`, `simplesdh`) and the chosen language to Netflix's manifest request, and wraps `JSON.parse` to read the subtitle track list from the response. Image-based subtitle tracks are skipped. When a language has both regular subtitles and a DUBTITLE (written for the dub in that language), Netfari uses the track Netflix itself shows for that language, else the DUBTITLE when the audio is in that language, else the regular one. The hook approach follows Tithen-Firion's MIT-licensed [Netflix subtitle downloader](https://github.com/Tithen-Firion/UserScripts/blob/master/Netflix_-_subtitle_downloader.user.js) userscript.
 - `sites/disney.js` watches the player's XHR requests for the HLS master playlist (`.m3u8`) and reads its `#EXT-X-MEDIA:TYPE=SUBTITLES` lines. Each language points to a playlist of small WebVTT files, which `core.js` downloads and joins. Forced tracks are skipped, and plain subtitles are preferred over "[CC]".
 - The icons in `extension/icons` are drawn by `tools/make_icons.py` (standard library only). To change them, edit the colors or shapes there and run:
 
@@ -69,10 +69,15 @@ python3 -I test/serve.py 8765
 
 Then open `http://localhost:8765/watch/12345` and `http://localhost:8765/play/abc`. Each page title reads "ALL PASS" when every check passes.
 
+## Disclaimer
+
+- **Unofficial:** Netflix, Disney+ and Safari are trademarks of their owners. This project is not affiliated with or endorsed by Netflix, Disney or Apple.
+- **What it touches:** Netfari does not touch the video, DRM or other content protection, and does not save or share any content. It shows subtitle files the site already sends to your browser, inside your own player.
+- **Terms of use:** an extension that changes how a streaming site works may conflict with that site's terms of use. Use it at your own risk.
+- **No warranty:** see sections 15 and 16 of the GPL in `LICENSE`.
+
 ## License
 
 Copyright (C) 2026 liu-yu-tung
 
 GPL-3.0-or-later, see `LICENSE`. You can use, change, and share it; versions you distribute must stay open source under the same license.
-
-Netflix, Disney+ and Safari are trademarks of their owners. This project is not affiliated with or endorsed by Netflix, Disney or Apple.
