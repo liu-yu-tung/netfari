@@ -16,8 +16,12 @@
   const siteFile = (SITE_FILES.find(([re]) => re.test(location.hostname)) || [])[1];
   if (!siteFile) return;
 
-  // core.js first, then the site file; async=false keeps that order.
-  for (const file of ['core.js', siteFile]) {
+  // Safari 18+ runs core.js and the site file in the page world from the
+  // manifest ("world": "MAIN"), before the site's own scripts. Older Safari
+  // ignores that, so inject them: core.js first, then the site file
+  // (async=false keeps the order). A second copy does nothing.
+  const injected = document.documentElement.hasAttribute('data-netfari');
+  for (const file of injected ? [] : ['core.js', siteFile]) {
     const script = document.createElement('script');
     script.src = api.runtime.getURL(file);
     script.async = false;

@@ -10,10 +10,20 @@
 //   shadowVideos            optional: also look for <video> inside shadow DOM
 //   timeOffset(video)       optional: seconds to add to video.currentTime to get
 //                           the time the subtitle files use
+//   chooseTrack(tracks, lang) optional: pick among usable tracks of one language
+//   selectionKey()          optional: changes when the player's audio or subtitle
+//                           choice changes, so the track choice is redone
 // A track is { lang, label, kind: 'subtitles'|'closedcaptions'|..., forced,
 // format: 'webvtt-...'|'dfxp-...'|'hls-webvtt'|..., urls: [...] }.
 (() => {
   if (window.__netfariCore) return;
+  // Safari before 18 ignores "world": "MAIN" and would run this file in the
+  // content-script world, where the hooks see nothing; content.js injects it then.
+  if (globalThis.browser?.runtime?.id || globalThis.chrome?.runtime?.id) return;
+  // Tells content.js that the page-world copy is already running.
+  document.documentElement.setAttribute('data-netfari', '');
+  // 'manifest' = started by Safari before the site's scripts; 'injected' = by content.js.
+  const loadedBy = document.currentScript ? 'injected' : 'manifest';
 
   const MSG = '__netfari';
   const LS_KEY = 'netfari.settings';
@@ -78,7 +88,12 @@
     const loose = exact.length
       ? exact
       : usable.filter((t) => t.lang.split('-')[0] === lang.split('-')[0]);
-    return loose.find((t) => t.kind === 'subtitles') || loose[0] || null;
+    if (!loose.length) return null;
+    let chosen = null;
+    try {
+      chosen = site && site.chooseTrack ? site.chooseTrack(loose, lang) : null;
+    } catch {}
+    return chosen || loose.find((t) => t.kind === 'subtitles') || loose[0];
   }
 
   async function refresh() {
@@ -412,9 +427,18 @@
   }
 
   // A thrown error must not stop the loop, or the last line stays on screen.
+  let lastSelection = '';
+
   function tick() {
     diag.renders++;
     try {
+      if (site && site.selectionKey && diag.renders % 10 === 0) {
+        const key = String(site.selectionKey());
+        if (key !== lastSelection) {
+          lastSelection = key;
+          refresh();
+        }
+      }
       render();
     } catch (e) {
       diag.renderError = String(e && e.stack ? e.stack.split('\n')[0] : e);
@@ -521,16 +545,26 @@
   function debug() {
     const v = findVideo();
     const t = v ? filmTime(v) : null;
+    const movie = currentMovieId();
+    const list = (movie && tracksByMovie.get(movie)) || [];
+    const base = (settings.lang || '').split('-')[0];
+    const options = list.filter((o) => o.lang.split('-')[0] === base);
+    const chosen = settings.lang ? pickTrack(list, settings.lang) : null;
     let bigGaps = 0;
     for (let i = 1; i < cues.length; i++) if (cues[i].start - cues[i - 1].end > 60) bigGaps++;
     return origStringify({
       version: diag.version,
+      loadedBy,
       site: site && site.name,
       movie: currentMovieId(),
       status,
       lang: settings.lang,
       enabled: settings.enabled,
-      tracks: ((currentMovieId() && tracksByMovie.get(currentMovieId())) || []).length,
+      tracks: list.length,
+      // Every track in the chosen language, and which one is shown.
+      options: options.map((o) => ({ label: o.label, kind: o.kind, forced: o.forced, format: o.format, info: o.info })),
+      chosen: options.indexOf(chosen),
+      extra: list.extra || null,
       cues: cues.length,
       firstCueStart: cues.length ? cues[0].start : null,
       lastCueEnd: cues.length ? cues[cues.length - 1].end : null,

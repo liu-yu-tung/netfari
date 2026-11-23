@@ -73,7 +73,9 @@
                 ttDownloadables: { 'webvtt-lssdh-ios8': { urls: [{ url: '/subs/missing.vtt' }] } } },
               { language: 'en', languageDescription: 'English', rawTrackType: 'subtitles',
                 ttDownloadables: { 'webvtt-lssdh-ios8': { urls: [{ cdn_id: 1, url: '/subs/en.vtt' }] } } },
-              { language: 'fr', languageDescription: 'Français', rawTrackType: 'subtitles',
+              { language: 'fr', languageDescription: 'Français', rawTrackType: 'subtitles', id: 'T:fr-dub', trackVariant: 'DUBTITLE',
+                ttDownloadables: { 'webvtt-lssdh-ios8': { urls: [{ url: '/subs/fr_dub.vtt' }] } } },
+              { language: 'fr', languageDescription: 'Français', rawTrackType: 'subtitles', id: 'T:fr-regular',
                 ttDownloadables: { 'dfxp-ls-sdh': { downloadUrls: { 7: '/subs/fr.dfxp' } } } },
               { language: 'ko', languageDescription: 'Korean', rawTrackType: 'subtitles',
                 ttDownloadables: { 'nflx-cmisc': { downloadUrls: { 7: '/subs/ko.zip' } } } },
@@ -135,6 +137,31 @@
         const st = states[states.length - 1];
         check('missing language reported', /No "de" subtitles/.test(st.status), st.status);
         check('missing language hides overlay', overlayText() === '');
+
+        // 9. Two French tracks: regular (translated from the original audio) and a
+        //    DUBTITLE (follows the French dub). The DUBTITLE is listed first.
+        toPage({ type: 'settings', settings });
+        fakeTime = 1.2;
+        await sleep(400);
+        check('no player info: regular track', overlayText() === 'Bonjour, comment\nça va ?', JSON.stringify(overlayText()));
+        let audio = { trackId: 'A:fr', bcp47: 'fr' };
+        let shown = null;
+        const fakePlayer = { getAudioTrack: () => audio, getTextTrack: () => shown };
+        window.netflix = { appContext: { state: { playerApp: { getAPI: () => ({ videoPlayer: {
+          getAllPlayerSessionIds: () => ['watch-1'], getVideoPlayerBySessionId: () => fakePlayer } }) } } } };
+        await sleep(1400);
+        check('French audio: DUBTITLE track', overlayText() === 'Bonjour du doublage', JSON.stringify(overlayText()));
+        shown = { trackId: 'T:fr-regular' };
+        await sleep(1400);
+        check('Netflix shows regular French: same track', overlayText() === 'Bonjour, comment\nça va ?', JSON.stringify(overlayText()));
+        audio = { trackId: 'A:en', bcp47: 'en' };
+        shown = { trackId: 'T:en' };
+        await sleep(1400);
+        check('English audio: regular track', overlayText() === 'Bonjour, comment\nça va ?', JSON.stringify(overlayText()));
+        audio = { trackId: 'A:fr2', bcp47: 'fr' };
+        await sleep(1400);
+        check('switch back to French audio: DUBTITLE again', overlayText() === 'Bonjour du doublage', JSON.stringify(overlayText()));
+        delete window.netflix;
 
         // 8. JSON still behaves normally.
         check('JSON.parse reviver still works', JSON.parse('{"a":1}', (k, v) => (k === 'a' ? v + 1 : v)).a === 2);

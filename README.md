@@ -48,9 +48,9 @@ Safari removes temporary extensions after 24 hours or when it quits, so repeat s
 
 ## How it works
 
-- `content.js` injects `core.js` and the file for the current site from `sites/` into the page, and passes settings from `browser.storage.local`.
+- `core.js` and the file for the current site from `sites/` run in the page's own JavaScript world. Safari 18 and later start them from the manifest (`"world": "MAIN"`) before the site's scripts, so the first subtitle list is never missed; on older Safari `content.js` injects them. `content.js` passes settings from `browser.storage.local`.
 - `core.js` is shared: it downloads the chosen track, parses WebVTT or TTML, and draws the line that matches `video.currentTime` over the video, so it also shows in fullscreen. A new site is one more file in `sites/` (the interface is described at the top of `core.js`).
-- `sites/netflix.js` wraps `JSON.stringify` to add text subtitle formats (`webvtt-lssdh-ios8`, `dfxp-ls-sdh`, `imsc1.1`, `simplesdh`) and the chosen language to Netflix's manifest request, and wraps `JSON.parse` to read the subtitle track list from the response. Image-based subtitle tracks are skipped. The hook approach follows Tithen-Firion's MIT-licensed Netflix subtitle downloader userscript.
+- `sites/netflix.js` wraps `JSON.stringify` to add text subtitle formats (`webvtt-lssdh-ios8`, `dfxp-ls-sdh`, `imsc1.1`, `simplesdh`) and the chosen language to Netflix's manifest request, and wraps `JSON.parse` to read the subtitle track list from the response. Image-based subtitle tracks are skipped. When a language has both regular subtitles and a DUBTITLE (written for the dub in that language), Netfari uses the track Netflix itself shows for that language, else the DUBTITLE when the audio is in that language, else the regular one. The hook approach follows Tithen-Firion's MIT-licensed Netflix subtitle downloader userscript.
 - `sites/disney.js` watches the player's XHR requests for the HLS master playlist (`.m3u8`) and reads its `#EXT-X-MEDIA:TYPE=SUBTITLES` lines. Each language points to a playlist of small WebVTT files, which `core.js` downloads and joins. Forced tracks are skipped, and plain subtitles are preferred over "[CC]".
 - The icons in `extension/icons` are drawn by `tools/make_icons.py` (standard library only). To change them, edit the colors or shapes there and run:
 
@@ -60,7 +60,7 @@ python3 -I tools/make_icons.py extension/icons
 
 ## Test
 
-- **`test/harness.html`:** fakes a Netflix watch page (manifest request and response, a VTT and a TTML file, a video element) and runs 23 checks against `core.js` and `sites/netflix.js`.
+- **`test/harness.html`:** fakes a Netflix watch page (manifest request and response, a VTT and a TTML file, a video element) and runs 28 checks against `core.js` and `sites/netflix.js`, including the regular/DUBTITLE choice.
 - **`test/disney.html`:** fakes a Disney+ play page (master playlist by XHR, split WebVTT files, a second video the player switches to, the first one in shadow DOM, a MediaSource with a shifted clock) and runs 24 checks against `core.js` and `sites/disney.js`.
 
 ```bash

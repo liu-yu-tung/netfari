@@ -51,7 +51,45 @@
     playerView(video) {
       return video.closest('.watch-video--player-view');
     },
+
+    // A language can have two tracks: regular subtitles (translated from the
+    // original audio) and a DUBTITLE (follows the dub in that language).
+    chooseTrack(tracks, lang) {
+      const p = player();
+      const shown = p && p.getTextTrack && p.getTextTrack();
+      // Same language as Netflix's own subtitle: use exactly that track.
+      const same = shown && tracks.find((t) => t.id && t.id === shown.trackId);
+      if (same) return same;
+      const audio = (p && p.getAudioTrack && p.getAudioTrack()) || {};
+      const wantDub = !!audio.bcp47 && audio.bcp47.split('-')[0] === lang.split('-')[0];
+      const score = (t) => (t.variant === 'DUBTITLE') === wantDub;
+      return (
+        tracks.find((t) => score(t) && t.kind === 'subtitles') ||
+        tracks.find(score) ||
+        null
+      );
+    },
+
+    selectionKey() {
+      const p = player();
+      if (!p) return '';
+      const a = p.getAudioTrack && p.getAudioTrack();
+      const t = p.getTextTrack && p.getTextTrack();
+      return (a && a.trackId) + '|' + (t && t.trackId);
+    },
   });
+
+  // Netflix's own player object, or null. Used only to read which audio and
+  // subtitle tracks are selected.
+  function player() {
+    try {
+      const vp = window.netflix.appContext.state.playerApp.getAPI().videoPlayer;
+      const ids = vp.getAllPlayerSessionIds();
+      return vp.getVideoPlayerBySessionId(ids.find((id) => id.startsWith('watch')) || ids[0]) || null;
+    } catch {
+      return null;
+    }
+  }
 
   function patchRequest(data, settings) {
     if (!data || typeof data !== 'object') return;
@@ -75,6 +113,18 @@
     }
   }
 
+  // Netflix's own description of a track (ids, type, flags, and short id lists
+  // such as which subtitle tracks go with an audio track), for debug().
+  function shortFields(t) {
+    const out = {};
+    const small = (v) => typeof v === 'boolean' || typeof v === 'number' || (typeof v === 'string' && v.length <= 120);
+    for (const [k, v] of Object.entries(t)) {
+      if (small(v)) out[k] = v;
+      else if (Array.isArray(v) && v.length <= 80 && v.every(small)) out[k] = v;
+    }
+    return out;
+  }
+
   function readTracks(r) {
     const list = [];
     for (const t of r.timedtexttracks || r.textTracks || []) {
@@ -94,12 +144,16 @@
           label: t.languageDescription || t.language,
           kind: t.rawTrackType || '',
           forced: !!t.isForcedNarrative,
+          id: t.id || t.new_track_id || '',
+          variant: t.trackVariant || '',
           format,
           urls,
+          info: shortFields(t),
         });
         break;
       }
     }
+    list.extra = { audio: (r.audio_tracks || r.audioTracks || []).map(shortFields) };
     return list;
   }
 })();

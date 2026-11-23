@@ -26,6 +26,28 @@
   "content_scripts": [
     {
       "matches": [
+        "*://*.netflix.com/*"
+      ],
+      "js": [
+        "core.js",
+        "sites/netflix.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.disneyplus.com/*"
+      ],
+      "js": [
+        "core.js",
+        "sites/disney.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
         "*://*.netflix.com/*",
         "*://*.disneyplus.com/*"
       ],
