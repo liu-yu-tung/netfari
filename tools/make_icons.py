@@ -39,7 +39,7 @@ def app_icon(x, y, s):
         return (0, 0, 0, 0)
     if bars(x, y, s):
         return (255, 255, 255, 255)
-    return (214, 51, 108, 255)
+    return (228, 87, 46, 255)
 
 
 def toolbar_icon(x, y, s):
