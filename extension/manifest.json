@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Netfari",
-  "version": "0.1.0",
-  "description": "Show a second subtitle language on Netflix in Safari and turn it on or off.",
+  "version": "0.2.0",
+  "description": "Show a second subtitle language on Netflix and Disney+ in Safari and turn it on or off.",
   "icons": {
     "48": "icons/icon-48.png",
     "96": "icons/icon-96.png",
@@ -16,19 +16,36 @@
       "32": "icons/toolbar-32.png"
     }
   },
-  "permissions": ["storage"],
-  "host_permissions": ["*://*.netflix.com/*"],
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.netflix.com/*",
+    "*://*.disneyplus.com/*"
+  ],
   "content_scripts": [
     {
-      "matches": ["*://*.netflix.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.disneyplus.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["page.js"],
-      "matches": ["*://*.netflix.com/*"]
+      "resources": [
+        "core.js",
+        "sites/netflix.js",
+        "sites/disney.js"
+      ],
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.disneyplus.com/*"
+      ]
     }
   ]
 }

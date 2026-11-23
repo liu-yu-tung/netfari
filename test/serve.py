@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Local stand-in for Netflix: /watch/<id> serves the harness, /ext/ the extension, /subs/ fixtures."""
+"""Local stand-in for the sites: /watch/<id> serves the Netflix harness, /play/<id> the
+Disney+ harness, /ext/ the extension, /subs/ fixtures."""
 import http.server
 import sys
 from pathlib import Path
@@ -13,6 +14,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = path.split("?", 1)[0]
         if path.startswith("/watch/"):
             return str(ROOT / "harness.html")
+        if path.startswith("/play/"):
+            return str(ROOT / "disney.html")
         if path.startswith("/ext/"):
             return str(EXT / path[len("/ext/"):])
         if path.startswith("/subs/"):

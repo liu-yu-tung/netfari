@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 const api = globalThis.browser || globalThis.chrome;
-const DEFAULTS = { enabled: true, lang: '', position: 'top', size: 4.5 };
+const DEFAULTS = { enabled: true, lang: '', position: 7, size: 4.5, lineHeight: 1.25 };
+const LEGACY_POSITION = { top: 7, bottom: 80 };
 
-// Fallback list when the current tab has no Netflix track list yet.
+// Fallback list when the current tab has no track list yet.
 const COMMON_LANGS = [
   'ar', 'cs', 'da', 'de', 'el', 'en', 'es', 'es-ES', 'fi', 'fr', 'he', 'hi', 'hr', 'hu',
   'id', 'it', 'ja', 'ko', 'ms', 'nb', 'nl', 'pl', 'pt', 'pt-BR', 'ro', 'ru', 'sv', 'th',
@@ -28,14 +29,14 @@ const nameOf = (code) => {
 async function pageState() {
   try {
     const [tab] = await api.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !/netflix\.com/.test(tab.url || '')) return null;
+    if (!tab || !/^https?:\/\/([^/]*\.)?(netflix|disneyplus)\.com\//.test(tab.url || '')) return null;
     return await api.tabs.sendMessage(tab.id, { type: 'getState' });
   } catch {
     return null;
   }
 }
 
-function fillLanguages(select, current, tracks) {
+function fillLanguages(select, current, tracks, site) {
   select.textContent = '';
   const none = new Option('Choose...', '');
   select.add(none);
@@ -51,7 +52,8 @@ function fillLanguages(select, current, tracks) {
   const rest = COMMON_LANGS.filter((c) => !available.has(c));
   if (current && !available.has(current) && !rest.includes(current)) rest.unshift(current);
   const group = document.createElement('optgroup');
-  group.label = tracks.length ? 'Other (reload the video after choosing)' : 'Languages';
+  // Netflix can add a language on the next load; Disney+ always lists all of them.
+  group.label = !tracks.length ? 'Languages' : site === 'disney' ? 'Other (not on this title)' : 'Other (reload the video after choosing)';
   for (const c of rest) group.appendChild(new Option(`${nameOf(c)} (${c})`, c));
   select.appendChild(group);
 
@@ -59,15 +61,17 @@ function fillLanguages(select, current, tracks) {
 }
 
 async function main() {
+  $('version').textContent = api.runtime.getManifest().version;
   const settings = { ...DEFAULTS, ...(await api.storage.local.get(DEFAULTS)) };
   const state = await pageState();
 
   $('enabled').checked = settings.enabled;
-  $('position').value = settings.position;
+  $('position').value = LEGACY_POSITION[settings.position] ?? settings.position;
   $('size').value = settings.size;
-  fillLanguages($('lang'), settings.lang, (state && state.tracks) || []);
+  $('lineHeight').value = settings.lineHeight;
+  fillLanguages($('lang'), settings.lang, (state && state.tracks) || [], state && state.site);
 
-  if (!state) $('status').textContent = 'Open a Netflix video to see its languages.';
+  if (!state) $('status').textContent = 'Open a Netflix or Disney+ video to see its languages.';
   else if (!state.movie) $('status').textContent = 'Start playing a video.';
   else $('status').textContent = state.status || '';
 
@@ -76,11 +80,13 @@ async function main() {
     api.storage.local.set({ lang: e.target.value });
     const onTitle = state && state.tracks.some((t) => t.lang === e.target.value);
     if (state && state.movie && e.target.value && !onTitle) {
-      $('status').textContent = 'Not on this title yet. Reload the video page to request it.';
+      $('status').textContent =
+        state.site === 'disney' ? 'Not on this title.' : 'Not on this title yet. Reload the video page to request it.';
     }
   });
-  $('position').addEventListener('change', (e) => api.storage.local.set({ position: e.target.value }));
-  $('size').addEventListener('input', (e) => api.storage.local.set({ size: Number(e.target.value) }));
+  for (const id of ['position', 'size', 'lineHeight']) {
+    $(id).addEventListener('input', (e) => api.storage.local.set({ [id]: Number(e.target.value) }));
+  }
 
   if (state) {
     setInterval(async () => {

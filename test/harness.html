@@ -38,10 +38,12 @@
       };
 
       async function run() {
-        const s = document.createElement('script');
-        s.src = '/ext/page.js';
-        document.head.appendChild(s);
-        await new Promise((r) => (s.onload = r));
+        for (const f of ['core.js', 'sites/netflix.js']) {
+          const s = document.createElement('script');
+          s.src = '/ext/' + f;
+          document.head.appendChild(s);
+          await new Promise((r) => (s.onload = r));
+        }
         await sleep(100);
 
         // 1. Manifest request gets patched.
@@ -96,7 +98,7 @@
         await sleep(250);
         check('multi-line vtt cue', overlayText() === 'Two\nlines', JSON.stringify(overlayText()));
         const o = document.querySelector('.netfari-overlay');
-        check('overlay inside player view', o.parentElement.className === 'watch-video--player-view');
+        check('overlay inside player view', !!o.closest('.watch-video--player-view'));
         check('font size = 5% of 360px', o.style.fontSize === '18px', o.style.fontSize);
 
         // 5. Switch to French (TTML / dfxp).
@@ -105,7 +107,16 @@
         fakeTime = 1.2;
         await sleep(400);
         check('ttml cue with span and br', overlayText() === 'Bonjour, comment\nça va ?', JSON.stringify(overlayText()));
-        check('position bottom', o.style.bottom === '20%' && o.style.top === '', `top=${o.style.top} bottom=${o.style.bottom}`);
+        check('legacy position "bottom" = bottom 20%', o.style.bottom === '20%' && o.style.top === '', `top=${o.style.top} bottom=${o.style.bottom}`);
+        settings = { ...settings, position: 30, lineHeight: 1.6 };
+        toPage({ type: 'settings', settings });
+        await sleep(250);
+        check('position 30 = top 30%', o.style.top === '30%' && o.style.bottom === '', `top=${o.style.top} bottom=${o.style.bottom}`);
+        check('line spacing 1.6', o.style.lineHeight === '1.6', o.style.lineHeight);
+        settings = { ...settings, position: 90 };
+        toPage({ type: 'settings', settings });
+        await sleep(250);
+        check('position 90 = bottom 10%', o.style.bottom === '10%' && o.style.top === '', `top=${o.style.top} bottom=${o.style.bottom}`);
         fakeTime = 3.5;
         await sleep(250);
         check('ttml clock-time cue', overlayText() === "D'accord", JSON.stringify(overlayText()));

@@ -9,22 +9,35 @@ PROJ_DIR="$ROOT/xcode"
 PROJ="$PROJ_DIR/Netfari/Netfari.xcodeproj"
 BUILD="$ROOT/build"
 BUNDLE_ID="io.github.liu-yu-tung.Netfari"
-VERSION=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$ROOT/extension/manifest.json")
+BASE_VERSION=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$ROOT/extension/manifest.json")
 
-if [ ! -d "$PROJ" ]; then
-  xcrun safari-web-extension-converter "$ROOT/extension" \
-    --project-location "$PROJ_DIR" \
-    --app-name Netfari \
-    --bundle-identifier "$BUNDLE_ID" \
-    --swift --macos-only --no-open --no-prompt
-fi
+# Every build gets its own number (base version + counter), so Safari's settings
+# and the popup show which build is loaded. The counter file is not in git.
+COUNTER="$ROOT/.build-number"
+BUILD_NUM=$(( $(cat "$COUNTER" 2>/dev/null || echo 0) + 1 ))
+echo "$BUILD_NUM" > "$COUNTER"
+VERSION="$BASE_VERSION.$BUILD_NUM"
+
+# Regenerate every time: the project lists extension files one by one,
+# so a stale project would leave out files added since.
+rm -rf "$PROJ_DIR"
+xcrun safari-web-extension-converter "$ROOT/extension" \
+  --project-location "$PROJ_DIR" \
+  --app-name Netfari \
+  --bundle-identifier "$BUNDLE_ID" \
+  --swift --macos-only --no-open --no-prompt --copy-resources
+
+# Stamp the copied manifest only; extension/manifest.json stays as it is.
+MANIFEST=$(find "$PROJ_DIR" -name manifest.json -path '*Resources*' | head -n 1)
+sed -i '' "s/\"version\": *\"[^\"]*\"/\"version\": \"$VERSION\"/" "$MANIFEST"
+grep -q "\"version\": \"$VERSION\"" "$MANIFEST"
 
 rm -rf "$BUILD"
 xcodebuild -project "$PROJ" -scheme Netfari -configuration Release \
   -derivedDataPath "$BUILD/dd" -destination 'generic/platform=macOS' \
   ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET=12.0 \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
-  MARKETING_VERSION="$VERSION" \
+  MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUM" \
   build -quiet
 
 APP="$BUILD/dd/Build/Products/Release/Netfari.app"
@@ -42,4 +55,4 @@ for app in "$APP" "$STAGE/Netfari.app"; do
   "$LSREG" -u "$app" 2>/dev/null || true
 done
 rm -rf "$BUILD/dd" "$STAGE"
-echo "$BUILD/Netfari.dmg"
+echo "Netfari $VERSION: $BUILD/Netfari.dmg"

@@ -1,25 +1,36 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Isolated content script: injects page.js, passes settings in, answers the popup,
+// Isolated content script: injects core.js and the site file, passes settings in, answers the popup,
 // and handles the on/off keyboard shortcut (Option+S).
 (() => {
   const api = globalThis.browser || globalThis.chrome;
   const MSG = '__netfari';
-  const DEFAULTS = { enabled: true, lang: '', position: 'top', size: 4.5 };
+  const DEFAULTS = { enabled: true, lang: '', position: 7, size: 4.5, lineHeight: 1.25 };
 
   let settings = { ...DEFAULTS };
   let state = { movie: null, tracks: [], status: '' };
 
-  const script = document.createElement('script');
-  script.src = api.runtime.getURL('page.js');
-  script.onload = () => script.remove();
-  (document.head || document.documentElement).appendChild(script);
+  const SITE_FILES = [
+    [/(^|\.)netflix\.com$/, 'sites/netflix.js'],
+    [/(^|\.)disneyplus\.com$/, 'sites/disney.js'],
+  ];
+  const siteFile = (SITE_FILES.find(([re]) => re.test(location.hostname)) || [])[1];
+  if (!siteFile) return;
+
+  // core.js first, then the site file; async=false keeps that order.
+  for (const file of ['core.js', siteFile]) {
+    const script = document.createElement('script');
+    script.src = api.runtime.getURL(file);
+    script.async = false;
+    script.onload = () => script.remove();
+    (document.head || document.documentElement).appendChild(script);
+  }
 
   function toPage(msg) {
     window.postMessage({ [MSG]: 'toPage', ...msg }, location.origin);
   }
 
   function sendSettings() {
-    toPage({ type: 'settings', settings });
+    toPage({ type: 'settings', settings, version: api.runtime.getManifest().version });
   }
 
   api.storage.local.get(DEFAULTS).then((s) => {

@@ -1,0 +1,8 @@
+#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub-main",NAME="English [CC]",LANGUAGE="en",AUTOSELECT=YES,FORCED=NO,CHARACTERISTICS="public.accessibility.transcribes-spoken-dialog,public.accessibility.describes-music-and-sound",URI="r/en_cc/index.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub-main",NAME="English",LANGUAGE="en",AUTOSELECT=YES,FORCED=NO,CHARACTERISTICS="public.accessibility.transcribes-spoken-dialog",URI="r/en/index.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub-main",NAME="de--forced--",LANGUAGE="de",AUTOSELECT=YES,FORCED=YES,URI="r/de_forced/index.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub-main",NAME="Italian",LANGUAGE="it",AUTOSELECT=YES,FORCED=NO,CHARACTERISTICS="public.accessibility.transcribes-spoken-dialog",URI="r/it/index.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=1200000,CODECS="avc1.640028,mp4a.40.2",SUBTITLES="sub-main"
+r/video/index.m3u8

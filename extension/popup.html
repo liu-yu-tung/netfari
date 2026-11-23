@@ -31,6 +31,12 @@
         margin: 0 0 10px;
         font-size: 14px;
       }
+      #version {
+        color: var(--muted);
+        font-weight: 400;
+        font-size: 11px;
+        margin-left: 4px;
+      }
       .row {
         display: flex;
         align-items: center;
@@ -72,7 +78,7 @@
     </style>
   </head>
   <body>
-    <h1>Netfari</h1>
+    <h1>Netfari<span id="version"></span></h1>
     <div class="switch">
       <span>Secondary subtitles</span>
       <input type="checkbox" id="enabled" />
@@ -83,17 +89,18 @@
     </div>
     <div class="row">
       <label for="position">Position</label>
-      <select id="position">
-        <option value="top">Top</option>
-        <option value="bottom">Bottom (above Netflix subs)</option>
-      </select>
+      <input type="range" id="position" min="0" max="100" step="1" title="Left: top of the video. Right: bottom." />
     </div>
     <div class="row">
       <label for="size">Size</label>
       <input type="range" id="size" min="2" max="8" step="0.5" />
     </div>
+    <div class="row">
+      <label for="lineHeight">Line spacing</label>
+      <input type="range" id="lineHeight" min="0.9" max="2" step="0.05" />
+    </div>
     <div id="status"></div>
-    <div id="hint">Shortcut: Option+S on the Netflix page.</div>
+    <div id="hint">Shortcut: Option+S on the video page.</div>
     <script src="popup.js"></script>
   </body>
 </html>

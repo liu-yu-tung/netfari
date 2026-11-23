@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Netfari Disney+ harness</title>
+    <style>
+      body { margin: 0; font: 13px monospace; background: #111; color: #ddd; }
+      pre { padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <!-- Disney+ keeps a second <video> next to the one playing. -->
+    <div id="other-stage" style="position: relative; width: 320px; height: 180px"><video id="other" style="width: 100%; height: 100%"></video></div>
+    <div id="player"></div>
+    <pre id="results"></pre>
+    <script>
+      // Stands in for content.js on a Disney+ /play/ page.
+      const MSG = '__netfari';
+      const states = [];
+      let settings = { enabled: true, lang: 'it', position: 7, size: 5, lineHeight: 1.25 };
+      const toPage = (m) => window.postMessage({ [MSG]: 'toPage', ...m }, location.origin);
+      window.addEventListener('message', (e) => {
+        if (!e.data || e.data[MSG] !== 'toContent') return;
+        if (e.data.type === 'ready') toPage({ type: 'settings', settings });
+        if (e.data.type === 'state') states.push(e.data.state);
+      });
+
+      // The playing video lives in shadow DOM and reports media as loaded.
+      const shadow = document.getElementById('player').attachShadow({ mode: 'open' });
+      shadow.innerHTML =
+        '<div id="stage" style="position:relative;width:640px;height:360px;background:#222">' +
+        '<video style="width:100%;height:100%"></video></div>';
+      const video = shadow.querySelector('video');
+      let fakeTime = 0;
+      Object.defineProperty(video, 'currentTime', { get: () => fakeTime, set: (v) => (fakeTime = v) });
+      let mainPaused = false;
+      Object.defineProperty(video, 'readyState', { get: () => 4 });
+      Object.defineProperty(video, 'paused', { get: () => mainPaused });
+
+      // The other <video> starts idle; a test makes the player switch to it.
+      const other = document.getElementById('other');
+      let otherTime = 0, otherReady = 0, otherPaused = true;
+      Object.defineProperty(other, 'currentTime', { get: () => otherTime });
+      Object.defineProperty(other, 'readyState', { get: () => otherReady });
+      Object.defineProperty(other, 'paused', { get: () => otherPaused });
+
+      const out = [];
+      const check = (name, ok, detail = '') => out.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -> ' + detail : ''}`);
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const lastState = () => states[states.length - 1] || {};
+      const overlay = () => shadow.querySelector('.netfari-overlay') || document.querySelector('.netfari-overlay');
+      const overlayText = () => {
+        const o = overlay();
+        return o && o.style.display !== 'none' ? o.textContent : '';
+      };
+      const xhr = (url, responseType = '') =>
+        new Promise((resolve) => {
+          const r = new XMLHttpRequest();
+          r.open('GET', url);
+          r.responseType = responseType;
+          r.onload = resolve;
+          r.send();
+        });
+
+      async function run() {
+        for (const f of ['core.js', 'sites/disney.js']) {
+          const s = document.createElement('script');
+          s.src = '/ext/' + f;
+          document.head.appendChild(s);
+          await new Promise((r) => (s.onload = r));
+        }
+        await sleep(100);
+
+        // 1. Master playlist arrives by XHR.
+        await xhr('/subs/disney/master.m3u8');
+        await sleep(600);
+        let st = lastState();
+        check('site reported', st.site === 'disney', st.site);
+        check('movie key = page path', st.movie === location.pathname, st.movie);
+        check('tracks: en + it, forced de skipped', JSON.stringify(st.tracks.map((t) => t.lang)) === '["en","it"]', JSON.stringify(st.tracks));
+        check('en label prefers plain over [CC]', st.tracks[0].label === 'English', st.tracks[0].label);
+        check('missing piece skipped, rest loaded', st.status === 'Showing Italian', st.status);
+
+        // 2. Cues from the joined pieces follow currentTime.
+        fakeTime = 2;
+        await sleep(250);
+        check('first piece cue, STYLE block ignored', overlayText() === 'Prima riga', JSON.stringify(overlayText()));
+        fakeTime = 6;
+        await sleep(250);
+        check('cue repeated in two pieces shown once', overlayText() === 'Tra due pezzi', JSON.stringify(overlayText()));
+        fakeTime = 7.5;
+        await sleep(250);
+        check('second piece cue', overlayText() === 'Seconda parte', JSON.stringify(overlayText()));
+
+        // 3. Overlay sits on the shadow-DOM video, sized to it.
+        const box = shadow.querySelector('.netfari-box');
+        check('box next to the playing video', !!box && box.parentElement === shadow.getElementById('stage'));
+        check('box matches video size', box && box.style.width === '640px' && box.style.height === '360px', box && `${box.style.width} x ${box.style.height}`);
+        check('font size = 5% of 360px', overlay().style.fontSize === '18px', overlay().style.fontSize);
+
+        // 3b. The player switches to its other <video> (as on a seek) and back.
+        mainPaused = true;
+        otherReady = 4;
+        otherPaused = false;
+        otherTime = 7.5;
+        other.dispatchEvent(new Event('seeking'));
+        await sleep(300);
+        check('follows the other video after a switch', overlayText() === 'Seconda parte', JSON.stringify(overlayText()));
+        check('overlay moves to that video', !!document.querySelector('#other-stage .netfari-overlay'));
+        otherTime = 2;
+        other.dispatchEvent(new Event('timeupdate'));
+        await sleep(250);
+        check('follows a jump on that video', overlayText() === 'Prima riga', JSON.stringify(overlayText()));
+        otherPaused = true;
+        mainPaused = false;
+        fakeTime = 7.5;
+        video.dispatchEvent(new Event('playing'));
+        await sleep(250);
+        check('switches back to the first video', overlayText() === 'Seconda parte' && !!shadow.querySelector('.netfari-overlay'), JSON.stringify(overlayText()));
+
+        // 4. A media playlist does not replace the track list.
+        await xhr('/subs/disney/r/it/index.m3u8');
+        await sleep(200);
+        toPage({ type: 'getState' });
+        await sleep(100);
+        check('media playlist ignored', lastState().tracks.length === 2, JSON.stringify(lastState().tracks));
+
+        // 5. Plain English is picked over [CC].
+        settings = { ...settings, lang: 'en' };
+        toPage({ type: 'settings', settings });
+        fakeTime = 2;
+        await sleep(500);
+        check('plain English chosen', lastState().status === 'Showing English' && overlayText() === 'First line', `${lastState().status} / ${JSON.stringify(overlayText())}`);
+
+        // 6. Only a forced track exists for de.
+        settings = { ...settings, lang: 'de' };
+        toPage({ type: 'settings', settings });
+        await sleep(300);
+        st = lastState();
+        check('forced-only language reported missing', st.status === 'No "de" subtitles on this title.', st.status);
+        check('missing language hides overlay', overlayText() === '');
+
+        // 7. Next title in the same tab; master read from an arraybuffer response.
+        history.pushState({}, '', '/play/next-title');
+        await sleep(250);
+        check('new title waits for its list', lastState().status === 'Waiting for the Disney+ subtitle list (reload the page if this stays)', lastState().status);
+        settings = { ...settings, lang: 'it' };
+        toPage({ type: 'settings', settings });
+        await xhr('/subs/disney/master.m3u8', 'arraybuffer');
+        await sleep(600);
+        fakeTime = 2;
+        await sleep(250);
+        check('arraybuffer master read for new path', lastState().movie === '/play/next-title' && overlayText() === 'Prima riga', `${lastState().movie} / ${JSON.stringify(overlayText())}`);
+
+        // 8. Debug readout for real-site troubleshooting.
+        const d = JSON.parse(window.__netfariCore.debug());
+        check('debug readout', d.site === 'disney' && d.cues === 3 && d.pieces === 3 && d.failedPieces === 1 && d.renderError === '' && d.cuesNow === 1, JSON.stringify(d));
+
+        // 9. After a seek Disney+ restarts the video clock: a new MediaSource whose
+        //    SourceBuffer.timestampOffset is minus the seek point.
+        if (window.MediaSource && MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"')) {
+          const ms = new MediaSource();
+          video.src = URL.createObjectURL(ms);
+          await new Promise((r) => ms.addEventListener('sourceopen', r, { once: true }));
+          const sb = ms.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+          sb.timestampOffset = -5;
+          fakeTime = 2.5;
+          await sleep(300);
+          check('title time = video time - timestampOffset', overlayText() === 'Seconda parte', JSON.stringify(overlayText()));
+          const d2 = JSON.parse(window.__netfariCore.debug());
+          check('debug shows both clocks', d2.videoTime === 2.5 && d2.filmTime === 7.5, `${d2.videoTime} / ${d2.filmTime}`);
+        } else {
+          check('MediaSource available in this browser', false, 'cannot test timestampOffset here');
+        }
+
+        const fails = out.filter((l) => l.startsWith('FAIL')).length;
+        out.push(`\n${out.length} checks, ${fails} failed`);
+        document.getElementById('results').textContent = out.join('\n');
+        document.title = fails ? 'FAILED' : 'ALL PASS';
+      }
+      run().catch((e) => {
+        document.getElementById('results').textContent = 'ERROR ' + e.stack;
+        document.title = 'ERROR';
+      });
+    </script>
+  </body>
+</html>
