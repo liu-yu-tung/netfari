@@ -48,17 +48,23 @@ xcodebuild -project "$PROJ" -scheme Netfari -configuration Release \
 
 APP="$BUILD/dd/Build/Products/Release/Netfari.app"
 STAGE="$BUILD/stage"
+
+# Keep only the dmg, so Safari doesn't list the build output as extra copies.
+# Runs on exit, also when a step fails.
+cleanup() {
+  LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+  for app in "$APP" "$STAGE/Netfari.app"; do
+    pluginkit -r "$app/Contents/PlugIns/Netfari Extension.appex" 2>/dev/null || true
+    "$LSREG" -u "$app" 2>/dev/null || true
+  done
+  rm -rf "$BUILD/dd" "$STAGE"
+}
+trap cleanup EXIT
+
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 
+# Fails with "Resource busy" while an older Netfari.dmg is still mounted.
 hdiutil create -volname Netfari -srcfolder "$STAGE" -format UDZO -ov "$BUILD/Netfari.dmg" >/dev/null
-
-# Keep only the dmg, so Safari doesn't list the build output as extra copies.
-LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-for app in "$APP" "$STAGE/Netfari.app"; do
-  pluginkit -r "$app/Contents/PlugIns/Netfari Extension.appex" 2>/dev/null || true
-  "$LSREG" -u "$app" 2>/dev/null || true
-done
-rm -rf "$BUILD/dd" "$STAGE"
 echo "Netfari $VERSION: $BUILD/Netfari.dmg"
